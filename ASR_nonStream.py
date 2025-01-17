@@ -8,10 +8,10 @@ import math
 import numpy as np
 
 
-folder = 'eg3/'
+folder = 'eg1/'
 #------------ Load data------------
 waveform, sample_rate = sf.read(folder + "eg16k.wav")
-stride = sample_rate * 30
+stride = sample_rate * 2
 piece_num = ceil(len(waveform) / stride)
 
 #------------ load speaker Verification model------------
@@ -280,12 +280,17 @@ model = AutoModel(model="paraformer-zh",
                   )
     
 # -------------------computing...----------------
-spks = [] # shape=[spk num, emb length]
-spks_num = []
-half_wav_sentence = None
 threshold = 0.8
+buffer_threshold = 20 * sample_rate
 FRAME_PER_SECOND = 1000
 
+len_buffer = 0
+buffer = None
+
+spks = [] # shape=[spk num, emb length]
+spks_num = []
+last_id = -1
+now_id = -1
 for i in range(piece_num):
     if i != piece_num - 1:
         sf.write(folder + "piece.wav", waveform[i*stride: (i+1)*stride],sample_rate)
@@ -294,56 +299,65 @@ for i in range(piece_num):
 
     # add the half sentence left in last piece
     piece, sample_rate = sf.read(folder + "piece.wav")
-    edited_piece = np.concatenate((half_wav_sentence, piece), axis = 0) if half_wav_sentence is not None else piece
-    sf.write(folder + "edited_piece.wav", edited_piece, sample_rate)
+    len_buffer += len(piece)
 
     # ASR
-    res = model.generate(input=folder + "edited_piece.wav", 
+    res = model.generate(input=folder + "piece.wav", 
                 batch_size_s=6000, 
                 hotword='增容'
                 )
 
     # cut audio piece for CAM++ to get speaker embedding
-    emb_piece = []
-    spk_id_piece = []
-    l = len(res[0]['sentence_info'])
-    for i in range(l-1):
-        sentence = res[0]['sentence_info'][i]
-        audio_piece = edited_piece[int(sentence['start']/FRAME_PER_SECOND*16000): int(sentence['end']/FRAME_PER_SECOND*16000)]
-        emb_piece.append(compute_embedding(torch.from_numpy(audio_piece)[:,0].unsqueeze(0)))
-    half_wav_sentence = edited_piece[int(res[0]['sentence_info'][l-1]['start']/FRAME_PER_SECOND*16000): ]
+    sentence = res[0]['text']
+    emb = compute_embedding(torch.from_numpy(piece).unsqueeze(0))
 
     # update spks and get spk id of this piece
-    for i in range(len(emb_piece)):
-        emb = emb_piece[i]
-        score = []
-        for spk in spks:
-            score.append(compute_score(emb, spk))
-        if len(spks) == 0:
-            spk_id_piece.append(0)
-            spks.append(emb)
-            spks_num.append(1)
+    score = []
+    for spk in spks:
+        score.append(compute_score(emb, spk))
+    if len(spks) == 0:
+        # first piece
+        spks.append(emb)
+        spks_num.append(1)
+        now_id = 0
+        last_id = 0
+    else:
+        # not first piece
+        # record the speaker id and emb
+        len_audio = len(piece)
+        if len_audio < sample_rate:
+            now_id = id = np.argmin(np.array(score))
         else:
-            sentence = res[0]['sentence_info'][i]
-            len_audio = sentence['end'] - sentence['start']
-            if len_audio < FRAME_PER_SECOND:
-                id = np.argmin(np.array(score))
-                spk_id_piece.append(id)
+            if min(score) < threshold:
+                now_id = id = np.argmin(np.array(score))
+                spks[id] = (spks[id]*spks_num[id] + emb) / (spks_num[id] + 1)
+                spks_num[id] += 1
             else:
-                if min(score) < threshold:
-                    id = np.argmin(np.array(score))
-                    spk_id_piece.append(id)
-                    spks[id] = (spks[id]*spks_num[id] + emb) / (spks_num[id] + 1)
-                    spks_num[id] += 1
-                else:
-                    spk_id_piece.append(len(spks))
-                    spks.append(emb)
-                    spks_num.append(1)
+                spks.append(emb)
+                spks_num.append(1)
+                now_id = len(spks) - 1
+
+        if buffer is not None and (len_buffer > buffer_threshold or last_id != now_id):
+            # go back to update ASR
+            if last_id != now_id:
+                sf.write(folder + "buffer.wav", buffer, sample_rate)
+                buffer = piece
+            else:
+                buffer = np.concatenate((buffer, piece), axis = 0)
+                sf.write(folder + "buffer.wav", buffer, sample_rate)
+                buffer = None
+            buffer_asr_result = model.generate(input=folder + "buffer.wav", 
+                        batch_size_s=6000, 
+                        hotword='增容'
+                        )
+            with open(folder + 'buffer_eg_funasr_nonStream_spk.txt','a') as f:
+                f.write(str(last_id) + buffer_asr_result[0]['text'] + '\n')          
+        else:
+            buffer = np.concatenate((buffer, piece), axis = 0) if buffer is not None else piece
+        last_id = now_id
+
             
     # save
     with open(folder + 'eg_funasr_nonStream_spk.txt','a') as f:
-        for i in range(len(emb_piece)):
-            sentence = res[0]['sentence_info'][i]
-            f.write(str(spk_id_piece[i]) + sentence['text'] + '\n')
-        f.write('\n')
+        f.write(str(now_id) + res[0]['text'] + '\n')
 
