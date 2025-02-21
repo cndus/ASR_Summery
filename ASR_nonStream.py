@@ -8,9 +8,13 @@ import math
 import numpy as np
 
 
-folder = 'eg1/'
+folder = 'eg2/'
+asr_file = 'buffer_eg_v2.txt'
 #------------ Load data------------
 waveform, sample_rate = sf.read(folder + "eg16k.wav")
+print(waveform.shape)
+if waveform.shape[1] > 1:
+    waveform = np.expand_dims(waveform[:, 0], axis=1)
 stride = sample_rate * 2
 piece_num = ceil(len(waveform) / stride)
 
@@ -280,41 +284,34 @@ model = AutoModel(model="paraformer-zh",
                   )
     
 # -------------------computing...----------------
-threshold = 0.8
-buffer_threshold = 20 * sample_rate
+low_threshold = 0.6
+high_threshold = 0.84
+max_buffer_length = 20 * sample_rate
 FRAME_PER_SECOND = 1000
 
-len_buffer = 0
 buffer = None
 
 spks = [] # shape=[spk num, emb length]
 spks_num = []
 last_id = -1
 now_id = -1
+stage_id = -1
+stage_piece = None
 for i in range(piece_num):
     if i != piece_num - 1:
         sf.write(folder + "piece.wav", waveform[i*stride: (i+1)*stride],sample_rate)
     else:
         sf.write(folder + "piece.wav", waveform[i*stride: ],sample_rate)
 
-    # add the half sentence left in last piece
     piece, sample_rate = sf.read(folder + "piece.wav")
-    len_buffer += len(piece)
-
-    # ASR
-    res = model.generate(input=folder + "piece.wav", 
-                batch_size_s=6000, 
-                hotword='增容'
-                )
-
-    # cut audio piece for CAM++ to get speaker embedding
-    sentence = res[0]['text']
     emb = compute_embedding(torch.from_numpy(piece).unsqueeze(0))
 
     # update spks and get spk id of this piece
     score = []
+
     for spk in spks:
         score.append(compute_score(emb, spk))
+
     if len(spks) == 0:
         # first piece
         spks.append(emb)
@@ -323,41 +320,92 @@ for i in range(piece_num):
         last_id = 0
     else:
         # not first piece
-        # record the speaker id and emb
-        len_audio = len(piece)
-        if len_audio < sample_rate:
+        if min(score) < high_threshold:
             now_id = id = np.argmin(np.array(score))
+            spks[id] = (spks[id]*spks_num[id] + emb) / (spks_num[id] + 1)
+            spks_num[id] += 1
         else:
-            if min(score) < threshold:
-                now_id = id = np.argmin(np.array(score))
-                spks[id] = (spks[id]*spks_num[id] + emb) / (spks_num[id] + 1)
-                spks_num[id] += 1
-            else:
-                spks.append(emb)
-                spks_num.append(1)
-                now_id = len(spks) - 1
+            spks.append(emb)
+            spks_num.append(1)
+            now_id = len(spks) - 1
 
-        if buffer is not None and (len_buffer > buffer_threshold or last_id != now_id):
-            # go back to update ASR
-            if last_id != now_id:
+        if stage_id != -1:
+            if last_id == now_id:
+                # spk change
+                sf.write(folder + "buffer.wav", buffer, sample_rate)
+                buffer = np.concatenate((stage_piece, piece), axis = 0)
+                asr_result = model.generate(input=folder + "buffer.wav", 
+                            batch_size_s=6000, 
+                            hotword='增容'
+                            )
+                with open(folder + asr_file,'a') as f:
+                    f.write(str(stage_id) + asr_result[0]['text'] + '\n')   
+            else:
+                if now_id == stage_id:
+                    # spk not change
+                    buffer = np.concatenate((buffer, stage_piece), axis = 0)
+                    buffer = np.concatenate((buffer, piece), axis = 0)
+                else:
+                    # spk change
+                    sf.write(folder + "buffer.wav", buffer, sample_rate)
+                    asr_result = model.generate(input=folder + "buffer.wav", 
+                                batch_size_s=6000, 
+                                hotword='增容'
+                                )
+                    with open(folder + asr_file,'a') as f:
+                        f.write(str(stage_id) + asr_result[0]['text'] + '\n')   
+
+                    sf.write(folder + "buffer.wav", stage_piece, sample_rate)
+                    asr_result = model.generate(input=folder + "buffer.wav", 
+                                batch_size_s=6000, 
+                                hotword='增容'
+                                )
+                    with open(folder + asr_file,'a') as f:
+                        f.write(str(last_id) + asr_result[0]['text'] + '\n')   
+                    
+                    buffer = piece
+
+            stage_id = -1
+            stage_piece = None
+        elif buffer is not None and last_id != now_id:
+            if min(score) < low_threshold:
+                # confidant
                 sf.write(folder + "buffer.wav", buffer, sample_rate)
                 buffer = piece
+
+                asr_result = model.generate(input=folder + "buffer.wav", 
+                            batch_size_s=6000, 
+                            hotword='增容'
+                            )
+                with open(folder + asr_file,'a') as f:
+                    f.write(str(last_id) + asr_result[0]['text'] + '\n')  
             else:
-                buffer = np.concatenate((buffer, piece), axis = 0)
-                sf.write(folder + "buffer.wav", buffer, sample_rate)
-                buffer = None
-            buffer_asr_result = model.generate(input=folder + "buffer.wav", 
+                # not confidant
+                stage_id = last_id
+                stage_piece = piece
+        elif buffer is not None and len(buffer) > max_buffer_length:
+            # go back to update ASR
+            buffer = np.concatenate((buffer, piece), axis = 0)
+            sf.write(folder + "buffer.wav", buffer, sample_rate)
+            buffer = None
+            asr_result = model.generate(input=folder + "buffer.wav", 
                         batch_size_s=6000, 
                         hotword='增容'
                         )
-            with open(folder + 'buffer_eg_funasr_nonStream_spk.txt','a') as f:
-                f.write(str(last_id) + buffer_asr_result[0]['text'] + '\n')          
+            with open(folder + asr_file,'a') as f:
+                f.write(str(last_id) + asr_result[0]['text'] + '\n')       
         else:
             buffer = np.concatenate((buffer, piece), axis = 0) if buffer is not None else piece
         last_id = now_id
 
             
-    # save
-    with open(folder + 'eg_funasr_nonStream_spk.txt','a') as f:
-        f.write(str(now_id) + res[0]['text'] + '\n')
+# save
+if buffer is not None:
+    sf.write(folder + "buffer.wav", buffer, sample_rate)
+    asr_result = model.generate(input=folder + "buffer.wav", 
+                            batch_size_s=6000, 
+                            hotword='增容'
+                            )
+    with open(folder + asr_file,'a') as f:
+        f.write(str(last_id) + asr_result[0]['text'] + '\n')   
 
