@@ -8,12 +8,13 @@ import math
 import numpy as np
 
 
-folder = 'eg2/'
+folder = 'eg1/'
 asr_file = 'buffer_eg_v2.txt'
 #------------ Load data------------
 waveform, sample_rate = sf.read(folder + "eg16k.wav")
-print(waveform.shape)
-if waveform.shape[1] > 1:
+if len(waveform.shape) == 1:
+    waveform = np.expand_dims(waveform, axis=1)
+elif waveform.shape[1] > 1:
     waveform = np.expand_dims(waveform[:, 0], axis=1)
 stride = sample_rate * 2
 piece_num = ceil(len(waveform) / stride)
@@ -302,7 +303,6 @@ for i in range(piece_num):
         sf.write(folder + "piece.wav", waveform[i*stride: (i+1)*stride],sample_rate)
     else:
         sf.write(folder + "piece.wav", waveform[i*stride: ],sample_rate)
-
     piece, sample_rate = sf.read(folder + "piece.wav")
     emb = compute_embedding(torch.from_numpy(piece).unsqueeze(0))
 
@@ -318,6 +318,7 @@ for i in range(piece_num):
         spks_num.append(1)
         now_id = 0
         last_id = 0
+        buffer = piece
     else:
         # not first piece
         if min(score) < high_threshold:
