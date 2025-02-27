@@ -10,6 +10,7 @@ import numpy as np
 
 folder = 'eg1/'
 asr_file = 'buffer_eg_v2.txt'
+cache_path = "/home/xhyin/.cache/modelscope/hub/iic/"
 #------------ Load data------------
 waveform, sample_rate = sf.read(folder + "eg16k.wav")
 if len(waveform.shape) == 1:
@@ -224,27 +225,29 @@ save_dir.mkdir(exist_ok=True, parents=True)
 
 conf = supports[args.model_id]
 # download models from modelscope according to model_id
-cache_dir = snapshot_download(
-            args.model_id,
-            revision=conf['revision'],
-            )
-cache_dir = pathlib.Path(cache_dir)
+pretrained_model = save_dir / conf['model_pt']
+if not pathlib.Path(pretrained_model).exists():
+    cache_dir = snapshot_download(
+                args.model_id,
+                revision=conf['revision'],
+                )
+    cache_dir = pathlib.Path(cache_dir)
 
-embedding_dir = save_dir / 'embeddings'
-embedding_dir.mkdir(exist_ok=True, parents=True)
+    embedding_dir = save_dir / 'embeddings'
+    embedding_dir.mkdir(exist_ok=True, parents=True)
 
 # link
-download_files = ['examples', conf['model_pt']]
-for src in cache_dir.glob('*'):
-    if re.search('|'.join(download_files), src.name):
-        dst = save_dir / src.name
-        try:
-            dst.unlink()
-        except FileNotFoundError:
-            pass
-        dst.symlink_to(src)
+    print(f'[INFO]: {pretrained_model} not found. Linking files...')
+    download_files = ['examples', conf['model_pt']]
+    for src in cache_dir.glob('*'):
+        if re.search('|'.join(download_files), src.name):
+            dst = save_dir / src.name
+            try:
+                dst.unlink()
+            except FileNotFoundError:
+                pass
+            dst.symlink_to(src)
 
-pretrained_model = save_dir / conf['model_pt']
 pretrained_state = torch.load(pretrained_model, map_location='cpu')
 
 if torch.cuda.is_available():
@@ -260,7 +263,6 @@ else:
 model = conf['model']
 embedding_model = dynamic_import(model['obj'])(**model['args'])
 embedding_model.load_state_dict(pretrained_state)
-#embedding_model.to(device)
 embedding_model.eval()
 
 feature_extractor = FBank(80, sample_rate=16000, mean_nor=True)
@@ -276,14 +278,18 @@ def compute_score(embedding1, embedding2):
     scores = similarity(torch.from_numpy(embedding1).unsqueeze(0), torch.from_numpy(embedding2).unsqueeze(0)).item()
     return scores
 
-
 # ------------------load ASR model----------------
-model = AutoModel(model="paraformer-zh",  
+if pathlib.Path(cache_path).exists():
+    model = AutoModel(model=cache_path + "speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",  
+                  vad_model=cache_path + "speech_fsmn_vad_zh-cn-16k-common-pytorch", 
+                  punc_model=cache_path + "punc_ct-transformer_cn-en-common-vocab471067-large", disable_update=True,
+                  )
+else:
+    model = AutoModel(model="paraformer-zh",  
                   vad_model="fsmn-vad", 
                   punc_model="ct-punc", disable_update=True,
-                  spk_model="cam++"
                   )
-    
+
 # -------------------computing...----------------
 low_threshold = 0.6
 high_threshold = 0.84
@@ -305,6 +311,14 @@ for i in range(piece_num):
         sf.write(folder + "piece.wav", waveform[i*stride: ],sample_rate)
     piece, sample_rate = sf.read(folder + "piece.wav")
     emb = compute_embedding(torch.from_numpy(piece).unsqueeze(0))
+
+    # 伪实时
+    asr_result = model.generate(input=folder + "piece.wav", 
+                        batch_size_s=6000, 
+                        hotword='增容'
+                        )
+    with open(folder + '伪实时.txt','a') as f:
+        f.write(asr_result[0]['text'] + '\n')
 
     # update spks and get spk id of this piece
     score = []
