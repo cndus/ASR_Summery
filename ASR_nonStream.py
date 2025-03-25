@@ -8,8 +8,8 @@ import math
 import numpy as np
 
 
-folder = 'eg1/'
-asr_file = 'buffer_eg_v2.txt'
+folder = 'eg4/'
+asr_file = 'buffer.txt'
 cache_path = "/home/xhyin/.cache/modelscope/hub/iic/"
 #------------ Load data------------
 waveform, sample_rate = sf.read(folder + "eg16k.wav")
@@ -44,14 +44,6 @@ parser.add_argument('--model_id', default='iic/speech_campplus_sv_zh-cn_16k-comm
 parser.add_argument('--wavs', nargs='+', type=str, help='Wavs')
 parser.add_argument('--local_model_dir', default='pretrained', type=str, help='Local model dir')
 
-CAMPPLUS_VOX = {
-    'obj': 'speakerlab.models.campplus.DTDNN.CAMPPlus',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 512,
-    },
-}
-
 CAMPPLUS_COMMON = {
     'obj': 'speakerlab.models.campplus.DTDNN.CAMPPlus',
     'args': {
@@ -60,79 +52,6 @@ CAMPPLUS_COMMON = {
     },
 }
 
-ERes2Net_VOX = {
-    'obj': 'speakerlab.models.eres2net.ERes2Net.ERes2Net',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 192,
-    },
-}
-
-ERes2NetV2_COMMON = {
-    'obj': 'speakerlab.models.eres2net.ERes2NetV2.ERes2NetV2',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 192,
-        'baseWidth': 26,
-        'scale': 2,
-        'expansion': 2,
-    },
-}
-
-ERes2NetV2_w24s4ep4_COMMON = {
-    'obj': 'speakerlab.models.eres2net.ERes2NetV2.ERes2NetV2',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 192,
-        'baseWidth': 24,
-        'scale': 4,
-        'expansion': 4,
-    },
-}
-
-ERes2Net_COMMON = {
-    'obj': 'speakerlab.models.eres2net.ERes2Net_huge.ERes2Net',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 192,
-    },
-}
-
-ERes2Net_base_COMMON = {
-    'obj': 'speakerlab.models.eres2net.ERes2Net.ERes2Net',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 512,
-        'm_channels': 32,
-    },
-}
-
-ERes2Net_Base_3D_Speaker = {
-    'obj': 'speakerlab.models.eres2net.ERes2Net.ERes2Net',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 512,
-        'm_channels': 32,
-    },
-}
-
-ERes2Net_Large_3D_Speaker = {
-    'obj': 'speakerlab.models.eres2net.ERes2Net.ERes2Net',
-    'args': {
-        'feat_dim': 80,
-        'embedding_size': 512,
-        'm_channels': 64,
-    },
-}
-
-ECAPA_CNCeleb = {
-    'obj': 'speakerlab.models.ecapa_tdnn.ECAPA_TDNN.ECAPA_TDNN',
-    'args': {
-        'input_size': 80,
-        'lin_neurons': 192,
-        'channels': [1024, 1024, 1024, 1024, 3072],
-    },
-}
 
 supports = {
     # CAM++ trained on 200k labeled speakers
@@ -140,78 +59,6 @@ supports = {
         'revision': 'v1.0.0', 
         'model': CAMPPLUS_COMMON,
         'model_pt': 'campplus_cn_common.bin',
-    },
-    # ERes2Net trained on 200k labeled speakers
-    'iic/speech_eres2net_sv_zh-cn_16k-common': {
-        'revision': 'v1.0.5', 
-        'model': ERes2Net_COMMON,
-        'model_pt': 'pretrained_eres2net_aug.ckpt',
-    },
-    # ERes2NetV2 trained on 200k labeled speakers
-    'iic/speech_eres2netv2_sv_zh-cn_16k-common': {
-        'revision': 'v1.0.1', 
-        'model': ERes2NetV2_COMMON,
-        'model_pt': 'pretrained_eres2netv2.ckpt',
-    },
-    # ERes2NetV2_w24s4ep4 trained on 200k labeled speakers
-    'iic/speech_eres2netv2w24s4ep4_sv_zh-cn_16k-common': {
-        'revision': 'v1.0.1', 
-        'model': ERes2NetV2_w24s4ep4_COMMON,
-        'model_pt': 'pretrained_eres2netv2w24s4ep4.ckpt',
-    },
-    # ERes2Net_Base trained on 200k labeled speakers
-    'iic/speech_eres2net_base_200k_sv_zh-cn_16k-common': {
-        'revision': 'v1.0.0', 
-        'model': ERes2Net_base_COMMON,
-        'model_pt': 'pretrained_eres2net.pt',
-    },
-    # CAM++ trained on a large-scale Chinese-English corpus
-    'iic/speech_campplus_sv_zh_en_16k-common_advanced': {
-        'revision': 'v1.0.0', 
-        'model': CAMPPLUS_COMMON,
-        'model_pt': 'campplus_cn_en_common.pt',
-    },
-    # CAM++ trained on VoxCeleb
-    'iic/speech_campplus_sv_en_voxceleb_16k': {
-        'revision': 'v1.0.2', 
-        'model': CAMPPLUS_VOX, 
-        'model_pt': 'campplus_voxceleb.bin', 
-    },
-    # ERes2Net trained on VoxCeleb
-    'iic/speech_eres2net_sv_en_voxceleb_16k': {
-        'revision': 'v1.0.2', 
-        'model': ERes2Net_VOX,
-        'model_pt': 'pretrained_eres2net.ckpt',
-    },
-    # ERes2Net_Base trained on 3dspeaker
-    'iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k': {
-        'revision': 'v1.0.1', 
-        'model': ERes2Net_Base_3D_Speaker,
-        'model_pt': 'eres2net_base_model.ckpt',
-    },
-    # ERes2Net_large trained on 3dspeaker
-    'iic/speech_eres2net_large_sv_zh-cn_3dspeaker_16k': {
-        'revision': 'v1.0.0', 
-        'model': ERes2Net_Large_3D_Speaker,
-        'model_pt': 'eres2net_large_model.ckpt',
-    },
-    # ECAPA-TDNN trained on CNCeleb
-    'iic/speech_ecapa-tdnn_sv_zh-cn_cnceleb_16k': {
-        'revision': 'v1.0.0', 
-        'model': ECAPA_CNCeleb,
-        'model_pt': 'ecapa-tdnn.ckpt',
-    },
-    # ECAPA-TDNN trained on 3dspeaker
-    'iic/speech_ecapa-tdnn_sv_zh-cn_3dspeaker_16k': {
-        'revision': 'v1.0.0', 
-        'model': ECAPA_CNCeleb,
-        'model_pt': 'ecapa-tdnn.ckpt',
-    },
-    # ECAPA-TDNN trained on VoxCeleb
-    'iic/speech_ecapa-tdnn_sv_en_voxceleb_16k': {
-        'revision': 'v1.0.1', 
-        'model': ECAPA_CNCeleb,
-        'model_pt': 'ecapa_tdnn.bin',
     },
 }
 
@@ -282,21 +129,24 @@ def compute_score(embedding1, embedding2):
 if pathlib.Path(cache_path).exists():
     model = AutoModel(model=cache_path + "speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",  
                   vad_model=cache_path + "speech_fsmn_vad_zh-cn-16k-common-pytorch", 
+                  spk_model="cam++",#speech_campplus_sv_zh-cn_16k-common
                   punc_model=cache_path + "punc_ct-transformer_cn-en-common-vocab471067-large", disable_update=True,
                   )
 else:
     model = AutoModel(model="paraformer-zh",  
                   vad_model="fsmn-vad", 
+                  spk_model="cam++",
                   punc_model="ct-punc", disable_update=True,
                   )
 
 # -------------------computing...----------------
 low_threshold = 0.6
 high_threshold = 0.84
-max_buffer_length = 20 * sample_rate
+max_buffer_length = 10 * sample_rate
 FRAME_PER_SECOND = 1000
 
 buffer = None
+buffer_piece_id = [-1, -1] # record correspoding piece id in buffer: (start id, end id)
 
 spks = [] # shape=[spk num, emb length]
 spks_num = []
@@ -318,7 +168,7 @@ for i in range(piece_num):
                         hotword='增容'
                         )
     with open(folder + '伪实时.txt','a') as f:
-        f.write(asr_result[0]['text'] + '\n')
+        f.write('piece id = ' + str(i) + '##' + asr_result[0]['text'] + '\n')
 
     # update spks and get spk id of this piece
     score = []
@@ -327,14 +177,16 @@ for i in range(piece_num):
         score.append(compute_score(emb, spk))
 
     if len(spks) == 0:
-        # first piece
+    # first piece
         spks.append(emb)
         spks_num.append(1)
         now_id = 0
         last_id = 0
         buffer = piece
+        buffer_piece_id = [i, i]
     else:
-        # not first piece
+    # not first piece
+        ## set spk id
         if min(score) < high_threshold:
             now_id = id = np.argmin(np.array(score))
             spks[id] = (spks[id]*spks_num[id] + emb) / (spks_num[id] + 1)
@@ -344,31 +196,35 @@ for i in range(piece_num):
             spks_num.append(1)
             now_id = len(spks) - 1
 
+        ## set buffer
         if stage_id != -1:
+        # spk may change in last piece
             if last_id == now_id:
-                # spk change
+            # spk change: last&now is a spk, before is another spk
                 sf.write(folder + "buffer.wav", buffer, sample_rate)
-                buffer = np.concatenate((stage_piece, piece), axis = 0)
                 asr_result = model.generate(input=folder + "buffer.wav", 
                             batch_size_s=6000, 
                             hotword='增容'
                             )
                 with open(folder + asr_file,'a') as f:
-                    f.write(str(stage_id) + asr_result[0]['text'] + '\n')   
+                    f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(stage_id) + asr_result[0]['text'] + '\n')   
+                buffer = np.concatenate((stage_piece, piece), axis = 0)    
+                buffer_piece_id = [i-1, i]
             else:
                 if now_id == stage_id:
-                    # spk not change
+                # spk not change
                     buffer = np.concatenate((buffer, stage_piece), axis = 0)
                     buffer = np.concatenate((buffer, piece), axis = 0)
+                    buffer_piece_id[1] = i
                 else:
-                    # spk change
+                # spk change: last, now, before are different spk
                     sf.write(folder + "buffer.wav", buffer, sample_rate)
                     asr_result = model.generate(input=folder + "buffer.wav", 
                                 batch_size_s=6000, 
                                 hotword='增容'
                                 )
                     with open(folder + asr_file,'a') as f:
-                        f.write(str(stage_id) + asr_result[0]['text'] + '\n')   
+                        f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(stage_id) + asr_result[0]['text'] + '\n')   
 
                     sf.write(folder + "buffer.wav", stage_piece, sample_rate)
                     asr_result = model.generate(input=folder + "buffer.wav", 
@@ -376,45 +232,53 @@ for i in range(piece_num):
                                 hotword='增容'
                                 )
                     with open(folder + asr_file,'a') as f:
-                        f.write(str(last_id) + asr_result[0]['text'] + '\n')   
+                        f.write('piece id = ' + str([i-1,i-1]) + ', spk id =' + str(last_id) + asr_result[0]['text'] + '\n')   
                     
                     buffer = piece
+                    buffer_piece_id = [i, i]
 
             stage_id = -1
             stage_piece = None
         elif buffer is not None and last_id != now_id:
+        # spk may change in this piece
             if min(score) < low_threshold:
-                # confidant
+                # confidant that spkm change
                 sf.write(folder + "buffer.wav", buffer, sample_rate)
-                buffer = piece
-
                 asr_result = model.generate(input=folder + "buffer.wav", 
                             batch_size_s=6000, 
                             hotword='增容'
                             )
                 with open(folder + asr_file,'a') as f:
-                    f.write(str(last_id) + asr_result[0]['text'] + '\n')  
+                    f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(last_id) + asr_result[0]['text'] + '\n')  
+
+                buffer = piece   
+                buffer_piece_id = [i, i] 
             else:
-                # not confidant
+                # not confidant: wait for next piece to check
                 stage_id = last_id
                 stage_piece = piece
         elif buffer is not None and len(buffer) > max_buffer_length:
-            # go back to update ASR
+        # update ASR bacause buffer is too long
             buffer = np.concatenate((buffer, piece), axis = 0)
+            buffer_piece_id[1] = i
             sf.write(folder + "buffer.wav", buffer, sample_rate)
-            buffer = None
             asr_result = model.generate(input=folder + "buffer.wav", 
                         batch_size_s=6000, 
                         hotword='增容'
                         )
             with open(folder + asr_file,'a') as f:
-                f.write(str(last_id) + asr_result[0]['text'] + '\n')       
+                f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(last_id) + asr_result[0]['text'] + '\n')       
+
+            buffer = None  
+            buffer_piece_id = [i+1, -1]  
         else:
+        # nothing special, simply add piece to buffer
             buffer = np.concatenate((buffer, piece), axis = 0) if buffer is not None else piece
+            buffer_piece_id[1] = i
         last_id = now_id
 
             
-# save
+# save for final piece
 if buffer is not None:
     sf.write(folder + "buffer.wav", buffer, sample_rate)
     asr_result = model.generate(input=folder + "buffer.wav", 
@@ -422,5 +286,18 @@ if buffer is not None:
                             hotword='增容'
                             )
     with open(folder + asr_file,'a') as f:
-        f.write(str(last_id) + asr_result[0]['text'] + '\n')   
+        f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(last_id) + asr_result[0]['text'] + '\n')   
+
+# total ASR
+asr_result = model.generate(input=folder + "eg16k.wav", 
+                        batch_size_s=6000, 
+                        hotword='增容'
+                        )
+last_id = -1
+with open(folder + "total_asr.txt",'w') as f:
+    for info in asr_result[0]['sentence_info']:            
+        if last_id != info['spk']:
+            last_id = info['spk']
+            f.write('\n' + str(info['spk']) + ' ## ')
+        f.write(info['text'])   
 
