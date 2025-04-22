@@ -6,9 +6,10 @@ import torchaudio as ta
 from math import ceil
 import math
 import numpy as np
+from spks import SpeakerManager
 
 
-folder = 'eg4/'
+folder = 'eg2/'
 asr_file = 'buffer.txt'
 cache_path = "/home/xhyin/.cache/modelscope/hub/iic/"
 #------------ Load data------------
@@ -154,6 +155,11 @@ last_id = -1
 now_id = -1
 stage_id = -1
 stage_piece = None
+
+spkmanager = SpeakerManager()
+spks = spkmanager.get_all_features()
+spks_num = [i+1 for i in range(len(spks))]
+
 for i in range(piece_num):
     if i != piece_num - 1:
         sf.write(folder + "piece.wav", waveform[i*stride: (i+1)*stride],sample_rate)
@@ -167,8 +173,12 @@ for i in range(piece_num):
                         batch_size_s=6000, 
                         hotword='增容'
                         )
-    with open(folder + '伪实时.txt','a') as f:
-        f.write('piece id = ' + str(i) + '##' + asr_result[0]['text'] + '\n')
+    try:
+        with open(folder + '伪实时.txt','a') as f:
+            f.write('piece id = ' + str(i) + '##' + asr_result[0]['text'] + '\n')
+    except:
+        print('warning: asr result=',asr_result)
+        continue
 
     # update spks and get spk id of this piece
     score = []
@@ -288,16 +298,16 @@ if buffer is not None:
     with open(folder + asr_file,'a') as f:
         f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(last_id) + asr_result[0]['text'] + '\n')   
 
-# total ASR
-asr_result = model.generate(input=folder + "eg16k.wav", 
-                        batch_size_s=6000, 
-                        hotword='增容'
-                        )
-last_id = -1
-with open(folder + "total_asr.txt",'w') as f:
-    for info in asr_result[0]['sentence_info']:            
-        if last_id != info['spk']:
-            last_id = info['spk']
-            f.write('\n' + str(info['spk']) + ' ## ')
-        f.write(info['text'])   
+# # total ASR
+# asr_result = model.generate(input=folder + "eg16k.wav", 
+#                         batch_size_s=6000, 
+#                         hotword='增容'
+#                         )
+# last_id = -1
+# with open(folder + "total_asr.txt",'w') as f:
+#     for info in asr_result[0]['sentence_info']:            
+#         if last_id != info['spk']:
+#             last_id = info['spk']
+#             f.write('\n' + str(info['spk']) + ' ## ')
+#         f.write(info['text'])   
 
