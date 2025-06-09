@@ -9,7 +9,7 @@ import numpy as np
 from spks import SpeakerManager
 
 
-folder = 'eg2/'
+folder = 'eg5/'
 asr_file = 'buffer.txt'
 cache_path = "/home/xhyin/.cache/modelscope/hub/iic/"
 #------------ Load data------------
@@ -141,8 +141,10 @@ else:
                   )
 
 # -------------------computing...----------------
+# threshold: 两个说话人emb的相似度越高，score值越大。低于low_threshold一定不是同一说话人，高于high_threshold一定是同一说话人
 low_threshold = 0.6
 high_threshold = 0.84
+
 max_buffer_length = 10 * sample_rate
 FRAME_PER_SECOND = 1000
 
@@ -197,8 +199,8 @@ for i in range(piece_num):
     else:
     # not first piece
         ## set spk id
-        if min(score) < high_threshold:
-            now_id = id = np.argmin(np.array(score))
+        if max(score) < high_threshold:
+            now_id = id = np.argmax(np.array(score))
             spks[id] = (spks[id]*spks_num[id] + emb) / (spks_num[id] + 1)
             spks_num[id] += 1
         else:
@@ -251,7 +253,7 @@ for i in range(piece_num):
             stage_piece = None
         elif buffer is not None and last_id != now_id:
         # spk may change in this piece
-            if min(score) < low_threshold:
+            if max(score) < low_threshold:
                 # confidant that spkm change
                 sf.write(folder + "buffer.wav", buffer, sample_rate)
                 asr_result = model.generate(input=folder + "buffer.wav", 
@@ -298,16 +300,51 @@ if buffer is not None:
     with open(folder + asr_file,'a') as f:
         f.write('piece id = ' + str(buffer_piece_id) + ', spk id =' + str(last_id) + asr_result[0]['text'] + '\n')   
 
-# # total ASR
-# asr_result = model.generate(input=folder + "eg16k.wav", 
-#                         batch_size_s=6000, 
-#                         hotword='增容'
-#                         )
-# last_id = -1
-# with open(folder + "total_asr.txt",'w') as f:
-#     for info in asr_result[0]['sentence_info']:            
-#         if last_id != info['spk']:
-#             last_id = info['spk']
-#             f.write('\n' + str(info['spk']) + ' ## ')
-#         f.write(info['text'])   
+# 在伪流式之后，重新进行ASR并识别说话人
+# 重新进行ASR
+asr_result = model.generate(input=folder + "eg16k.wav", 
+                        batch_size_s=6000, 
+                        hotword='增容'
+                        )
 
+# 重新识别说话人
+wav, sample_rate = sf.read(folder + "eg16k.wav")
+wav = wav[:, 0] if wav.ndim > 1 else wav  # 只取第一个通道
+spks = spkmanager.get_all_features()
+spks_index = len(spks) - 1 # 当前有多少说话人（包括新识别的说话人）
+asr_spk_match = {}
+
+for info in asr_result[0]['sentence_info']:            
+    if not info['spk'] in asr_spk_match:
+        audio = np.zeros(0)  # 初始化音频段
+        if info['end']/FRAME_PER_SECOND - info['start']/FRAME_PER_SECOND < 10:
+            # 说话人识别的音频长度小于10秒，在整个音频中寻找相同info['spk']的音频段
+            for sentence in asr_result[0]['sentence_info']:          
+                if sentence['spk'] == info['spk']:
+                    audio = np.concatenate((audio, wav[sentence['start']*sample_rate//FRAME_PER_SECOND: sentence['end']*sample_rate//FRAME_PER_SECOND]), axis=0)
+                    if len(audio) / sample_rate > 10:
+                        continue
+        else:
+            # 说话人识别的音频长度大于10秒，直接使用info['start']和info['end']对应的音频段
+            audio = wav[info['start']*sample_rate//FRAME_PER_SECOND: info['end']*sample_rate//FRAME_PER_SECOND]
+        # 识别到新说话人，进行说话人识别
+        emb = compute_embedding(torch.from_numpy(audio).unsqueeze(0))
+        score = []
+        for spk in spks:
+            score.append(compute_score(emb, spk))
+        if max(score) < low_threshold:
+            spks_index += 1
+            asr_spk_match[info['spk']] = spks_index
+        else:
+            # 不是新说话人，直接使用已有的说话人ID
+            now_id = np.argmax(np.array(score))
+            asr_spk_match[info['spk']] = now_id
+    info['spk'] = asr_spk_match[info['spk']]
+
+last_id = -1
+with open(folder + "total_asr.txt",'w') as f:
+    for info in asr_result[0]['sentence_info']:            
+        if last_id != info['spk']:
+            last_id = info['spk']
+            f.write('\n' + str(info['spk']) + ' ## ')
+        f.write(info['text'])   

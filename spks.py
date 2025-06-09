@@ -163,22 +163,16 @@ if __name__ == "__main__":
     manager = SpeakerManager()
 
     # 添加说话人
-    wav, sample_rate = sf.read("/home/xhyin/ASR_Summery/eg2/piece.wav")
-    wav = torch.from_numpy(wav).unsqueeze(0)
+    wav, sample_rate = sf.read("/home/xhyin/ASR_Summery/eg5/cut_20250609_193910.wav")
+    wav = torch.from_numpy(wav)[:,0]
+    print(wav.shape)
+    manager.add_speaker(wav, name="主持人")
 
-    print(wav.shape,"=====================")
-    manager.add_speaker(wav, name="张三")
-    manager.add_speaker(wav, name="李四")
-
-    # 打印所有特征向量
+    # 所有特征向量
     features = manager.get_all_features()
-    print("特征数量：", len(features))
-    print("第一个说话人特征维度：", features[0].shape)
 
     # 查询说话人姓名
     name_at_0 = manager.query_speaker(0)
-    print("索引 0 的说话人是：", name_at_0)
 
-    # 删除一个说话人
-    manager.delete_speaker("张三")
-    print("删除张三后所有说话人：", list(manager.speakers.keys()))
+    # # 删除一个说话人
+    # manager.delete_speaker("张三")

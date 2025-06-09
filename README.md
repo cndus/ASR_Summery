@@ -1,5 +1,9 @@
 # 音频转录（ASR）+ 说话人识别
 
+## 6.10 update
+- 修复了说话人识别的bug
+- 最终输出回退到上一个版本的格式：伪实时部分不变；最终的输出会单独进行一个ASR，在```total_asr.txt```中给出说话人id和ASR结果。其中id和SpeakerManager.get_all_features()函数返回的list中位置对应的就是预先录入的说话人；反之，如果id大于预录入说话人列表的长度，就是新说话人。
+
 ## 4.23update：SpeakerManager
 添加了预先输入说话人音频和姓名的SpeakerManager类。在进行ASR时，读取存取的说话人特征；后续可以通过调用SpeakerManager中的函数来获取id相应的说话人姓名。
 
